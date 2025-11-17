@@ -1,8 +1,10 @@
 langchain
 langchain-core
 langchain-google-genai
-langchain-community
-google-api-python-client
 requests
 streamlit
-streamlit-geolocation
+numpy
+scipy
+geopy
+pandas
+python-dotenv
