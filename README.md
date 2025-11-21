@@ -1,7 +1,7 @@
-# AI POI Tour Guide 🗺️  
+# AI POI Guide 🗺️  
 *A Streamlit App for Hackathon 2025 Genesis*
 
-> **Your personal tour guide, powered by RAG, LangChain, Google APIs, and Gemini 2.5-Flash!**
+> **Your personal guide, powered by RAG, LangChain, Google APIs, and Gemini 2.5-Flash!**
 
 ---
 
@@ -126,3 +126,4 @@ streamlit run app.py
 ---
 
 **Good luck, judges and hackers! 🎉**
+
