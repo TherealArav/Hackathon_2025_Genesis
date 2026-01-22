@@ -8,3 +8,6 @@ scipy
 geopy
 pandas
 python-dotenv
+streamlit-geolocation
+pydantic
+langchain-community

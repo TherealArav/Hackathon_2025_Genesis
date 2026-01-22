@@ -1,0 +1,10 @@
+.streamlit/secrets.toml
+.env
+venv/
+app_env/
+pycache/
+*.pyc
+.vscode/
+*.ipynb
+*.csv
+*.pdf

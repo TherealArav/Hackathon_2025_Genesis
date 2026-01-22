@@ -1,0 +1,59 @@
+\documentclass{article}
+\usepackage{booktabs}
+\usepackage{geometry}
+\geometry{a4paper, landscape, margin=1in}
+
+\begin{document} 
+
+\begin{table}[ht]
+    \centering
+    \caption{Performance Statistics for Dense Population Category (Time in Seconds)}
+    \label{tab:dense_stats_new}
+    \begin{tabular}{lcccccc}
+        \toprule
+        \textbf{Metric} & \textbf{Total Retrieval} & \textbf{Maps API} & \textbf{Search API} & \textbf{Req. Count} & \textbf{LLM Gen.} & \textbf{Total Time} \\
+        \midrule
+        Mean   & 11.29 & 1.04 & 10.23 & 19.50 & 22.04 & 33.33 \\
+        Std    & 0.90  & 0.40 & 0.86  & 1.08  & 27.81 & 27.59 \\
+        Min    & 9.79  & 0.04 & 8.73  & 17.00 & 8.73  & 20.06 \\
+        Max    & 12.98 & 1.55 & 11.77 & 20.00 & 99.94 & 110.37 \\
+        Median & 11.30 & 1.07 & 10.23 & 20.00 & 11.75 & 22.71 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+\begin{table}[ht]
+    \centering
+    \caption{Performance Statistics for Moderate Population Category (Time in Seconds)}
+    \label{tab:moderate_stats_new}
+    \begin{tabular}{lcccccc}
+        \toprule
+        \textbf{Metric} & \textbf{Total Retrieval} & \textbf{Maps API} & \textbf{Search API} & \textbf{Req. Count} & \textbf{LLM Gen.} & \textbf{Total Time} \\
+        \midrule
+        Mean   & 8.51  & 1.19 & 7.31  & 14.70 & 10.22 & 18.72 \\
+        Std    & 2.40  & 0.22 & 2.44  & 5.17  & 6.57  & 8.50 \\
+        Min    & 3.71  & 0.94 & 2.13  & 4.00  & 2.08  & 5.79  \\
+        Max    & 11.31 & 1.57 & 10.06 & 20.00 & 22.74 & 32.85 \\
+        Median & 9.11  & 1.17 & 7.69  & 14.50 & 8.45  & 17.22 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\begin{table}[ht]
+    \centering
+    \caption{Performance Statistics for Sparse Population Category (Time in Seconds)}
+    \label{tab:sparse_stats_new}
+    \begin{tabular}{lcccccc}
+        \toprule
+        \textbf{Metric} & \textbf{Total Retrieval} & \textbf{Maps API} & \textbf{Search API} & \textbf{Req. Count} & \textbf{LLM Gen.} & \textbf{Total Time} \\
+        \midrule
+        Mean   & 1.13 & 0.83 & 0.29 & 0.60 & 2.98 & 2.02 \\
+        Std    & 0.68 & 0.30 & 0.65 & 1.26 & 1.23 & 2.18 \\
+        Min    & 0.63 & 0.63 & 0.00 & 0.00 & 2.20 & 0.62 \\
+        Max    & 2.75 & 1.45 & 2.08 & 4.00 & 4.41 & 7.15 \\
+        Median & 0.76 & 0.72 & 0.00 & 0.00 & 2.35 & 0.76 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\end{document}
+
