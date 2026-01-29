@@ -1,5 +1,8 @@
 import os
 import streamlit as st
+from streamlit_geolocation import streamlit_geolocation
+import folium
+from streamlit_folium import st_folium
 import requests
 import time
 import csv
@@ -11,8 +14,6 @@ from typing import List, Dict, Any, Optional
 from pydantic import Field, ConfigDict
 from geopy.distance import great_circle
 from dotenv import load_dotenv
-
-# LangChain Imports
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -20,8 +21,6 @@ from langchain_core.documents import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
 from scipy.io.wavfile import write as write_wav
 
-# Geolocation Component
-from streamlit_geolocation import streamlit_geolocation
 
 load_dotenv()
 
@@ -89,6 +88,9 @@ class GoogleMapsPOIRetriever(BaseRetriever):
             ))
         return docs
 
+def get_directions_url(dest_lat, dest_lon):
+    return f"https://www.google.com/maps/dir/?api=1&destination={dest_lat},{dest_lon}"
+
 # --- 2. THE RAG "BRAIN" ---
 @st.cache_data(show_spinner=False)
 def get_rag_response(_query, _lat, _lon, _keys):
@@ -117,12 +119,14 @@ def get_rag_response(_query, _lat, _lon, _keys):
     chain = prompt | llm | StrOutputParser()
     summary = chain.invoke({"context": formatted_context, "question": _query})
     
-    map_data = [{"lat": d.metadata["latitude"], "lon": d.metadata["longitude"]} for d in docs]
+    map_data = [{"lat": d.metadata["latitude"], "lon": d.metadata["longitude"], "poi_name":d.metadata["poi_name"],"snippet": d.page_content,"distance_km": d.metadata["distance_km"]} for d in docs]
     return summary, map_data
+
+
 
 # --- 3. UI IMPLEMENTATION ---
 st.set_page_config(page_title="Geo-AI Guide", layout="wide")
-st.title("📍 Local AI Explorer")
+st.title("Local AI Explorer")
 
 # Initialize State
 if "user_lat" not in st.session_state: st.session_state.user_lat = 25.2048
@@ -140,7 +144,7 @@ if st.session_state.auth:
     st.write("### 1. Set Location")
     
     # Geolocation Expander to avoid blocking the UI
-    with st.expander("🛰️ Auto-detect via GPS"):
+    with st.expander("Auto-detect via GPS"):
         location = streamlit_geolocation()
         if location and location.get("latitude"):
             if round(st.session_state.user_lat, 4) != round(location["latitude"], 4):
@@ -158,9 +162,9 @@ if st.session_state.auth:
         st.session_state.user_lat = lat_input
         st.session_state.user_lon = lon_input
 
-    query = st.text_input("Search Nearby (e.g., 'Best Parks')", "Historic landmarks")
+    query = st.text_input("Search Nearby (e.g., 'Best Parks')", "Super Markets")
 
-    if st.button("🔍 Run Exploration"):
+    if st.button("Run Exploration"):
         keys = {
             "GOOGLE_API_KEY": os.environ.get("GOOGLE_API_KEY"),
             "GOOGLE_MAPS_API_KEY": os.environ.get("GOOGLE_MAPS_API_KEY"),
@@ -175,7 +179,57 @@ if st.session_state.auth:
                 st.subheader("AI Guide Results")
                 st.markdown(summary)
                 if map_points:
-                    st.map(pd.DataFrame(map_points))
+                    st.subheader("Map of Locations")
+                    m = folium.Map(
+                        location=[st.session_state.user_lat, st.session_state.user_lon],
+                        zoom_start=15,
+                        control_scale=True
+                    )
+
+                    folium.Marker(
+                        [st.session_state.user_lat, st.session_state.user_lon],
+                        popup="You are here",
+                        tooltip="Your Location",
+                        icon=folium.Icon(color="blue", icon="user", prefix="fa")
+                    ).add_to(m)
+
+                    # Loop through map points and add markers
+                    for point in map_points:
+                        lat = point.get("lat")
+                        lon = point.get("lon")
+                        name = point.get("poi_name")
+                        snippet = point.get("snippet")
+                        dist = point.get("distance_km", "N/A")
+                        directions_link = get_directions_url(lat, lon)
+
+                        # Construct HTML for the popup inside the loop
+                        # We use standard HTML tags for styling inside the bubble
+                        html_popup = f"""
+                        <div style="font-family: 'Arial', sans-serif; width: 200px;">
+                            <h4 style="margin-bottom: 5px; color: #d35400;">{name}</h4>
+                            <p style="font-size: 12px; color: #7f8c8d; margin-top: 0;">{dist} km away</p>
+                            <p style="font-size: 13px; line-height: 1.4;">{snippet}</p>
+                            <a href="{directions_link}" target="_blank" 
+                            style="display: block; text-align: center; background-color: #e67e22; 
+                                    color: white; padding: 8px; border-radius: 5px; 
+                                    text-decoration: none; font-weight: bold; margin-top: 10px;">
+                              Get Directions
+                            </a>
+                        </div>
+                        """
+                        iframe = folium.IFrame(html=html_popup, width=220, height=180)
+                        popup = folium.Popup(iframe, max_width=2650)
+
+                        folium.Marker(
+                            [lat, lon],
+                            popup=popup,
+                            tooltip=name,
+                            icon=folium.Icon(color="orange", icon="location-dot", prefix="fa")
+                        ).add_to(m)
+
+                    st_folium(m, width=700, height=500, returned_objects=[])                       
+
+                    # st.map(pd.DataFrame(map_points))
             except Exception as e:
                 st.error(f"Error: {e}")
 
