@@ -52,6 +52,33 @@ class GoogleMapsPOIRetriever(BaseRetriever):
             res = response.json()
             return res.get("results", []) if res.get("status") == "OK" else []
         except: return []
+    
+    def _get_accessibility_from_map(self, place_id: str) -> dict[str, Any]:
+        """Get accessibility info from Google Maps API"""
+        url = "https://maps.googleapis.com/maps/api/place/details/json"
+        
+        params = {
+            "place_id": place_id,
+            "fields": "wheelchair_accessible_entrance,wheelchair_accessible_restroom",
+            "key": self.maps_api_key
+        }
+        try:
+            response = requests.get(url, params=params, timeout=5)
+            res = response.json()
+            if res.get("status") == "OK":
+                accessibility = res.get("result", {})
+                return {
+                    "wheelchair_accessible_entrance": accessibility.get("wheelchair_accessible_entrance"),
+                    "wheelchair_accessible_restroom": accessibility.get("wheelchair_accessible_restroom")
+                }
+            else:
+                return {}
+        except:
+            return {}
+
+
+
+
 
     def _get_search_snippet(self, poi_name: str, vicinity: str) -> str:
         url = "https://www.googleapis.com/customsearch/v1"
@@ -72,10 +99,15 @@ class GoogleMapsPOIRetriever(BaseRetriever):
         user_loc = (self.user_latitude, self.user_longitude)
 
         for poi in pois[:5]: 
+            place_id = poi.get("place_id")
             loc = poi["geometry"]["location"]
             p_lat, p_lng = loc["lat"], loc["lng"]
             dist = f"{great_circle(user_loc, (p_lat, p_lng)).km:.2f}"
             snippet = self._get_search_snippet(poi.get("name"), poi.get("vicinity"))
+            accessible_info = self._get_accessibility_from_map(place_id)
+            is_accessible_entrance = accessible_info.get("wheelchair_accessible_entrance", "Unknown")
+            is_accessible_restroom = accessible_info.get("wheelchair_accessible_restroom", "Unknown")
+            snippet += f" Accessibility - Entrance: {is_accessible_entrance}, Restroom: {is_accessible_restroom}."
             docs.append(Document(
                 page_content=snippet,
                 metadata={
@@ -88,10 +120,11 @@ class GoogleMapsPOIRetriever(BaseRetriever):
             ))
         return docs
 
+
 def get_directions_url(dest_lat, dest_lon):
     return f"https://www.google.com/maps/dir/?api=1&destination={dest_lat},{dest_lon}"
 
-# --- 2. THE RAG "BRAIN" ---
+# --- 2. THE RAG BRAIN ---
 @st.cache_data(show_spinner=False)
 def get_rag_response(_query, _lat, _lon, _keys):
     retriever = GoogleMapsPOIRetriever(
@@ -119,9 +152,7 @@ def get_rag_response(_query, _lat, _lon, _keys):
     chain = prompt | llm | StrOutputParser()
     summary = chain.invoke({"context": formatted_context, "question": _query})
     
-    map_data = [{"lat": d.metadata["latitude"], "lon": d.metadata["longitude"], "poi_name":d.metadata["poi_name"],"snippet": d.page_content,"distance_km": d.metadata["distance_km"]} for d in docs]
-    return summary, map_data
-
+    return summary, docs
 
 
 # --- 3. UI IMPLEMENTATION ---
@@ -173,12 +204,12 @@ if st.session_state.auth:
         }
         
         with st.spinner("Processing RAG Pipeline..."):
-            try:
-                summary, map_points = get_rag_response(query, st.session_state.user_lat, st.session_state.user_lon, keys)
+            try:    
+                summary, map_info = get_rag_response(query, st.session_state.user_lat, st.session_state.user_lon, keys)
                 st.divider()
                 st.subheader("AI Guide Results")
                 st.markdown(summary)
-                if map_points:
+                if map_info:
                     st.subheader("Map of Locations")
                     m = folium.Map(
                         location=[st.session_state.user_lat, st.session_state.user_lon],
@@ -194,13 +225,13 @@ if st.session_state.auth:
                     ).add_to(m)
 
                     # Loop through map points and add markers
-                    for point in map_points:
-                        lat = point.get("lat")
-                        lon = point.get("lon")
-                        name = point.get("poi_name")
-                        snippet = point.get("snippet")
-                        dist = point.get("distance_km", "N/A")
-                        directions_link = get_directions_url(lat, lon)
+                    for point in map_info:
+                        lat :float = point.metadata.get("latitude")
+                        lon :float = point.metadata.get("longitude")
+                        name :str = point.metadata.get("poi_name")
+                        snippet :str = point.page_content
+                        dist :float = point.metadata.get("distance_km", "N/A")
+                        directions_link :str = get_directions_url(lat, lon)
 
                         # Construct HTML for the popup inside the loop
                         # We use standard HTML tags for styling inside the bubble
@@ -218,7 +249,7 @@ if st.session_state.auth:
                         </div>
                         """
                         iframe = folium.IFrame(html=html_popup, width=220, height=180)
-                        popup = folium.Popup(iframe, max_width=2650)
+                        popup = folium.Popup(iframe, max_width=220)
 
                         folium.Marker(
                             [lat, lon],
@@ -229,7 +260,6 @@ if st.session_state.auth:
 
                     st_folium(m, width=700, height=500, returned_objects=[])                       
 
-                    # st.map(pd.DataFrame(map_points))
             except Exception as e:
                 st.error(f"Error: {e}")
 
