@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Optional
 from pydantic import Field, ConfigDict
 from geopy.distance import great_circle
 from dotenv import load_dotenv
-from utilities import parse_markdown_table
+from utilities import store_doc_metadata
 from storage import QueryStorage
 
 # LangChain Imports
@@ -319,7 +319,7 @@ if st.session_state.auth:
                 st.session_state.summary, st.session_state.docs = get_rag_response(query, st.session_state.user_lat, st.session_state.user_lon, keys)
                 
                 # Save to cache
-                df_to_cache = parse_markdown_table(st.session_state.summary, st.session_state.docs)
+                df_to_cache = store_doc_metadata(st.session_state.docs)
                 connection.save_query_result(query_text=query, lat=st.session_state.user_lat, lon=st.session_state.user_lon, df=df_to_cache, summary=st.session_state.summary)
             except Exception as e:
                 st.error(f"Error: {e}")

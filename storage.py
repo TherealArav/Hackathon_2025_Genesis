@@ -61,6 +61,8 @@ class QueryStorage:
         Internal method to display all records in the cached_queries table for debugging purposes.
 
         :param self: Description
+        
+        !! DO NOT USE IN PRODUCTION !!
         """
 
         with self._get_connection() as conn:
@@ -68,7 +70,7 @@ class QueryStorage:
                 cols = ", ".join(cols)
             else:
                 raise ValueError("cols must be a list of columm names or '*'")
-            
+            # !! SQL INJECTION RISK !! This is for debugging only and should never be used in production without proper sanitization
             df = pd.read_sql_query(f"SELECT {cols} FROM cached_queries", conn)
             if df.empty:
                 return 'DEBUG: No rerords found'
@@ -125,5 +127,5 @@ class QueryStorage:
 if __name__ == "__main__":
     storage = QueryStorage("spatial_cache.db")
     print("Local SQLite Storage Initialized with indexing.")
-    storage._display_db_size()
+
     
