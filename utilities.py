@@ -20,9 +20,9 @@ def store_doc_metadata(docs: list[Document] = []) -> pd.DataFrame:
         try:
             meta: dict = doc.metadata
             # Only include metadata if it has valid latitude and longitude values
-            if not meta.latitude or  not meta.longitude:
-                meta.latitude = 0.0
-                meta.longitude = 0.0
+            if "latitude" not in meta or "longitude" not in meta:
+                meta["latitude"] = 0.0
+                meta["longitude"] = 0.0
                 print(f"DEBUG: Document metadata missing lat/lon, defaulting to 0.0: {meta}\n")
             meta_data.append(meta)
         except Exception as e:

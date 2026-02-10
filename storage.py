@@ -109,7 +109,7 @@ class QueryStorage:
         # Return the most recent record matching the location
         return sorted(valid_results, key=lambda x: x["timestamp"], reverse=True)[0]
 
-    def save_query_result(self, query_text: str, lat: float, lon: float, df: pd.DataFrame, summary: str):
+    def save_query_result(self, query_text: str, lat: float, lon: float, df: pd.DataFrame, summary: str) -> None:
         """
         Saves result to local storage, serializing the DataFrame to JSON.
         """
@@ -121,6 +121,24 @@ class QueryStorage:
                 INSERT INTO cached_queries (query, lat, lon, summary, table_data, timestamp)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (query_text.lower(), lat, lon, summary, table_json, timestamp))
+            conn.commit()
+
+    def _delete_query_result(self,query_text: str, lat: float, lon: float) -> None:
+        """
+        Delete old query results from local storage based on query text and location.
+        This method is for clearing cache entries that are no longer relevant or to manage storage size. 
+
+        :param self: Description
+        :param query_text: The text of the query to identify  which cache entry to delete.
+        :param lat: The latitude of the location associated with the cache entry to delete.
+        :param lon: The longitude of the location associated with the cache entry to delete.
+        """
+
+        with self._get_connection() as conn:
+            conn.execute(
+            """DELETE FROM cached_queries 
+               WHERE query = ? AND lat = ? AND lon = ?"""
+            ,(query_text,lat,lon))
             conn.commit()
 
 if __name__ == "__main__":

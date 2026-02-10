@@ -55,6 +55,16 @@ class GoogleMapsPOIRetriever(BaseRetriever):
             "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.accessibilityOptions"
         }
         
+        # Validate contents of payload before sending request
+        if check_user_query(query) is False:
+            st.error("Invalid query. Please enter a valid search term (alphanumeric and spaces only, max 100 characters)")
+            return []
+        
+        if check_user_cords(self.user_latitude, self.user_longitude) is False:
+            st.error("Invalid cordinates. Latitude must be between -90 and 90, Longitude must be between -180 and 180.")
+            st.stop()
+            return []
+            
         # We use locationBias to find results near the user
         payload = {
             "textQuery": query,
@@ -268,6 +278,7 @@ if "auth" not in st.session_state: st.session_state.auth = False
 if "summary" not in st.session_state: st.session_state.summary = ""
 if "docs" not in st.session_state: st.session_state.docs = []
 if "last_click_time" not in st.session_state: st.session_state.last_click_time = 0
+if "cache" not in st.session_state: st.session_state.cache = {}
 
 # Manage authentification
 with st.sidebar:
@@ -287,28 +298,28 @@ if st.session_state.auth:
     if lat_input != st.session_state.user_lat or lon_input != st.session_state.user_lon:
         st.session_state.user_lat = lat_input
         st.session_state.user_lon = lon_input
-
-
-    
+   
     if not check_user_cords(st.session_state.user_lat, st.session_state.user_lon ):
-        st.error("Invalid coordinates. Latitude must be between -90 and 90, Longitude must be between -180 and 180.")
-        
+       st.error("Invalid cordinates. Latitude must be between -90 and 90, Longitude must be between -180 and 180.")
 
-    query: str = st.text_input("Search Nearby", "Super Markets")
+    query: str = c1.text_input("Search Nearby", "Super Markets")
     if not check_user_query(query):
             st.error("Invalid query. Please enter a valid search term (alphanumeric and spaces only, max 100 characters)")
             st.stop()
 
-    if st.button("Run Exploration"):
+    
+
+    if c1.button("Run Exploration") and not is_rate_limit():
         st.session_state.summary = ""
         st.session_state.docs = []
+        st.session_state.cache = {}
 
         # Cache System 
         connection = QueryStorage()
-        cahce_result = connection.find_nearby_query(query_text=query, lat=st.session_state.user_lat, lon=st.session_state.user_lon)
-        if cahce_result:
-            st.session_state.summary = cahce_result.get("summary", "Unable to generate summary from cache.")
-            table_data: list[dict[str,Any]] = cahce_result.get("table_data", [])
+        st.session_state.cache = connection.find_nearby_query(query_text=query, lat=st.session_state.user_lat, lon=st.session_state.user_lon)
+        if st.session_state.cache:
+            st.session_state.summary = st.session_state.cache.get("summary", "Unable to generate summary from cache.")
+            table_data: list[dict[str,Any]] = st.session_state.cache.get("table_data", [])
             reconstruct_docs = []
             for record in table_data:
                 reconstruct_docs.append(Document(
@@ -325,61 +336,72 @@ if st.session_state.auth:
             st.session_state.docs = reconstruct_docs
             st.success("Loaded results from cache!")
         else:
-            # If no cache, run the RAG chain and save results
-            # Implementing a simple rate limit to prevent spamming the API while testing
-            if not is_rate_limit():
-                
-                keys = {
-                    "GOOGLE_API_KEY": os.environ.get("GOOGLE_API_KEY"),
-                    "GOOGLE_MAPS_API_KEY": os.environ.get("GOOGLE_MAPS_API_KEY"),
-                    "GOOGLE_SEARCH_API_KEY": os.environ.get("GOOGLE_SEARCH_API_KEY"),
-                    "GOOGLE_CSE_ID": os.environ.get("GOOGLE_CSE_ID")
-                }
-                
-                try:    
-                    st.session_state.summary, st.session_state.docs = get_rag_response(query, st.session_state.user_lat, st.session_state.user_lon, keys)
-                    
-                    # Save to cache
-                    df_to_cache = store_doc_metadata(st.session_state.docs)
-                    connection.save_query_result(query_text=query, lat=st.session_state.user_lat, lon=st.session_state.user_lon, df=df_to_cache, summary=st.session_state.summary)
-                except Exception as e:
-                    st.error(f"Error: {e}")
+        # If no cache, run the RAG chain and save results
+        # Implementing a simple rate limit to prevent spamming the API while testing
 
-        st.divider()
-        st.subheader("AI Guide Results")
-        st.markdown(st.session_state.summary)
-        st.divider()
-
-        # Map Visualization
-        if st.session_state.docs:
-            st.subheader("Interactive Map")
-            m = folium.Map(location=[st.session_state.user_lat, st.session_state.user_lon], zoom_start=15)
-
-            # Define user location marker
-            folium.Marker(
-                [st.session_state.user_lat, st.session_state.user_lon],
-                popup="Current Position",
-                icon=folium.Icon(color="blue", icon="user", prefix="fa")
-            ).add_to(m)
-
-            for d in st.session_state.docs:
-                maps_link = get_directions_url(d.metadata['latitude'], d.metadata['longitude'])
-                popup_html = f"""
-                <div style="font-family: Arial; width: 200px;">
-                    <b>{d.metadata['poi_name']}</b><br>
-                    Distance: {d.metadata['distance_km']} km<br>
-                    Accessibility: {d.metadata['wheelchair']}<br>
-                    <a href='{maps_link}' target='_blank'>Get Directions</a>
-                </div>
-                """
-                folium.Marker(
-                    [d.metadata['latitude'], d.metadata['longitude']],
-                    popup=folium.Popup(popup_html, max_width=250),
-                    icon=folium.Icon(color="orange", icon="location-dot", prefix="fa")
-                ).add_to(m)
+            keys = {
+                "GOOGLE_API_KEY": os.environ.get("GOOGLE_API_KEY"),
+                "GOOGLE_MAPS_API_KEY": os.environ.get("GOOGLE_MAPS_API_KEY"),
+                "GOOGLE_SEARCH_API_KEY": os.environ.get("GOOGLE_SEARCH_API_KEY"),
+                "GOOGLE_CSE_ID": os.environ.get("GOOGLE_CSE_ID")
+            }
             
-            # Display the map at the center
-            st_folium(m,use_container_width= True,height=600,returned_objects=[])
+            try:    
+                st.session_state.summary, st.session_state.docs = get_rag_response(query, st.session_state.user_lat, st.session_state.user_lon, keys)
+                
+                # Save to cache
+                df_to_cache = store_doc_metadata(st.session_state.docs)
+                connection.save_query_result(query_text=query, lat=st.session_state.user_lat, lon=st.session_state.user_lon, df=df_to_cache, summary=st.session_state.summary)
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+
+    if c2.button("Clear Cache") and st.session_state.cache:
+        connection = QueryStorage()
+        connection._delete_query_result(query_text=st.session_state.cache.get("query"), lat=st.session_state.cache.get("lat"), lon=st.session_state.cache.get("lon"))
+        st.session_state.cache = {}
+        st.success("Cache cleared for this query and location.")
+    elif st.session_state.cache:
+        st.info("Cache exists for this query and location. Click 'Clear Cache' to remove it.")
+    else:
+        st.info("No cache found for this query and location.")  
+        
+
+    st.divider()
+    st.subheader("AI Guide Results")
+    st.markdown(st.session_state.summary)
+    st.divider()
+
+    # Map Visualization
+    if st.session_state.docs:
+        st.subheader("Interactive Map")
+        m = folium.Map(location=[st.session_state.user_lat, st.session_state.user_lon], zoom_start=15)
+
+        # Define user location marker
+        folium.Marker(
+            [st.session_state.user_lat, st.session_state.user_lon],
+            popup="Current Position",
+            icon=folium.Icon(color="blue", icon="user", prefix="fa")
+        ).add_to(m)
+
+        for d in st.session_state.docs:
+            maps_link = get_directions_url(d.metadata['latitude'], d.metadata['longitude'])
+            popup_html = f"""
+            <div style="font-family: Arial; width: 200px;">
+                <b>{d.metadata['poi_name']}</b><br>
+                Distance: {d.metadata['distance_km']} km<br>
+                Accessibility: {d.metadata['wheelchair']}<br>
+                <a href='{maps_link}' target='_blank'>Get Directions</a>
+            </div>
+            """
+            folium.Marker(
+                [d.metadata['latitude'], d.metadata['longitude']],
+                popup=folium.Popup(popup_html, max_width=250),
+                icon=folium.Icon(color="orange", icon="location-dot", prefix="fa")
+            ).add_to(m)
+        
+        # Display the map at the center
+        st_folium(m,use_container_width= True,height=600,returned_objects=[])
 
 else:
     st.info("Please enter the password in the sidebar.")

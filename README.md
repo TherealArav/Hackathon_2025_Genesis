@@ -1,4 +1,4 @@
-# AI POI Guide 🗺️  
+# AI POI Guide   
 *A Streamlit App for Hackathon 2025 Genesis*
 
 > **Your personal guide, powered by RAG, LangChain, Google APIs, and Gemini 2.5-Flash!**
