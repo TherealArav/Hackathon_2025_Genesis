@@ -55,16 +55,6 @@ class GoogleMapsPOIRetriever(BaseRetriever):
             "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.accessibilityOptions"
         }
         
-        # Validate contents of payload before sending request
-        if check_user_query(query) is False:
-            st.error("Invalid query. Please enter a valid search term (alphanumeric and spaces only, max 100 characters)")
-            return []
-        
-        if check_user_cords(self.user_latitude, self.user_longitude) is False:
-            st.error("Invalid cordinates. Latitude must be between -90 and 90, Longitude must be between -180 and 180.")
-            st.stop()
-            return []
-            
         # We use locationBias to find results near the user
         payload = {
             "textQuery": query,
@@ -289,7 +279,6 @@ with st.sidebar:
 
 # Main Application
 if st.session_state.auth:
-    st.write("### 1. Set Location")
     
     c1, c2 = st.columns(2)
     lat_input: float = c1.number_input("Latitude", value = 25.1018, format="%.6f")
@@ -299,17 +288,23 @@ if st.session_state.auth:
         st.session_state.user_lat = lat_input
         st.session_state.user_lon = lon_input
    
-    if not check_user_cords(st.session_state.user_lat, st.session_state.user_lon ):
-       st.error("Invalid cordinates. Latitude must be between -90 and 90, Longitude must be between -180 and 180.")
+    query: str = st.text_input("Search Nearby", "Super Markets")
 
-    query: str = c1.text_input("Search Nearby", "Super Markets")
-    if not check_user_query(query):
+    c3,c4 = st.columns(2)
+    if c3.button("Run Exploration"): 
+
+        if not check_user_cords(st.session_state.user_lat, st.session_state.user_lon ):
+            st.error("Invalid cordinates. Latitude must be between -90 and 90, Longitude must be between -180 and 180.")
+            st.stop()
+        
+        if not check_user_query(query):
             st.error("Invalid query. Please enter a valid search term (alphanumeric and spaces only, max 100 characters)")
             st.stop()
-
-    
-
-    if c1.button("Run Exploration") and not is_rate_limit():
+        
+        if  is_rate_limit():
+            st.stop()
+        
+        
         st.session_state.summary = ""
         st.session_state.docs = []
         st.session_state.cache = {}
@@ -356,7 +351,7 @@ if st.session_state.auth:
                 st.error(f"Error: {e}")
 
 
-    if c2.button("Clear Cache") and st.session_state.cache:
+    if c4.button("Clear Cache") and st.session_state.cache:
         connection = QueryStorage()
         connection._delete_query_result(query_text=st.session_state.cache.get("query"), lat=st.session_state.cache.get("lat"), lon=st.session_state.cache.get("lon"))
         st.session_state.cache = {}
@@ -366,11 +361,9 @@ if st.session_state.auth:
     else:
         st.info("No cache found for this query and location.")  
         
-
-    st.divider()
-    st.subheader("AI Guide Results")
-    st.markdown(st.session_state.summary)
-    st.divider()
+    with st.container(border=True):
+        st.subheader("AI Guide Results")
+        st.markdown(st.session_state.summary)
 
     # Map Visualization
     if st.session_state.docs:
