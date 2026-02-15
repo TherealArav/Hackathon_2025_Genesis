@@ -12,3 +12,5 @@ pycache/
 *.db
 *.sql
 temp.py
+*.onnx
+*.bin
