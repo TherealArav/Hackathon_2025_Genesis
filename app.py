@@ -14,6 +14,7 @@ from geopy.distance import great_circle
 from dotenv import load_dotenv
 from utilities import utilities
 from storage import QueryStorage
+from tts_system import KokoroTTS
 
 # LangChain Imports
 from langchain_core.retrievers import BaseRetriever
@@ -330,7 +331,7 @@ if st.session_state.auth:
    
     query: str = st.text_input("Search Nearby", "Super Markets")
 
-    c3,c4 = st.columns(2)
+    c3,c4,c5 = st.columns(3)
     if c3.button("Run Exploration"): 
 
         if not utilities.check_user_cords(st.session_state.user_lat, st.session_state.user_lon ):
@@ -400,7 +401,13 @@ if st.session_state.auth:
         st.info("Cache exists for this query and location. Click 'Clear Cache' to remove it.")
     else:
         st.info("No cache found for this query and location.")  
+    
+    if c5.button("Play Audio Summary") and st.session_state.summary:
+        tts = KokoroTTS()
+        audio_bytes = tts.generate_audio(st.session_state.summary)
+        st.audio(audio_bytes, format="audio/wav")
         
+
     with st.container(border=True):
         st.subheader("AI Guide Results")
         st.markdown(st.session_state.summary)
