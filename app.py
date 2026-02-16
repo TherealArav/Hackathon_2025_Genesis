@@ -229,11 +229,53 @@ def apply_custom_css() -> None:
         div[data-testid="stMarkdownContainer"] th:nth-child(2),
         div[data-testid="stMarkdownContainer"] td:nth-child(2) {
         text-align: center;
-        }           
+        }         
+
+        /* 5. Target DataFrame obj style  */
+        [data-testid="stDataFrame"] {
+            --gdg-bg-header: #FF4B4B !important;
+            --gdg-text-header: #ffffff !important;
+            --gdg-accent-color: #FF4B4B !important;
+            --gdg-bg-header-hovered: #e64444 !important;
+        }
         </style>
     """
     st.markdown(custom_css, unsafe_allow_html=True)
 
+def apply_df_styles(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Applies conditional formatting and structural styling to the POI DataFrame.
+    
+    Refinements made:
+    1. Uses a more efficient dictionary-based color mapping.
+    2. Simplifies logic for "Unknown", "Yes/True", and "No/False".
+    3. Optimized for display in st.dataframe or st.table.
+    """
+    if df.empty:
+        return df
+
+    def get_status_style(val):
+        val_str = str(val)
+        # Dictionary mapping for quick style lookups
+        styles = {
+            "Unknown":'color: #FFFF00;', # Yellow
+            "Yes":    'color: #66FF00 ;', # Green
+            "True":    'color: #66FF00 ;', # Green
+            "No":      'color: #FF0000;', # Red
+            "False":   'color: #FF0000;'  # Red
+        }
+        
+        # Search for keywords in the cell value
+        for key, style in styles.items():
+            if key in val_str:
+                return style
+        return ''
+
+    # Apply the status coloring
+    # Note: .map() replaces .applymap() in newer Pandas versions
+    styled_df = df.style.map(get_status_style, subset=["Wheelchair Accessibility"])
+
+    return styled_df
 
 def is_rate_limit() -> bool:
     """
@@ -431,10 +473,12 @@ if st.session_state.auth:
         audio_bytes = tts.generate_audio(st.session_state.summary)
         st.audio(audio_bytes, format="audio/wav")
         
+    poi_df: pd.DataFrame = utilities.create_df_table(st.session_state.docs)
+    poi_df = apply_df_styles(poi_df)
 
     with st.container(border=True):
         st.subheader("AI Guide Results")
-        st.dataframe(utilities.create_df_table(st.session_state.docs), hide_index=True)
+        st.dataframe(poi_df, hide_index=True)
         st.markdown(st.session_state.summary)
 
     # Map Visualization

@@ -31,8 +31,7 @@ class utilities:
                     meta["longitude"] = 0.0
                 meta_data.append(meta)
             except Exception as e:
-                print(f"Error extracting metadata from document: {e}")
-                meta_data.append({})\
+                meta_data.append({})
         
         meta_df = pd.DataFrame(meta_data) if meta_data else pd.DataFrame()
             
