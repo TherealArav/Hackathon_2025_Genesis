@@ -251,15 +251,17 @@ def apply_df_styles(df: pd.DataFrame) -> pd.DataFrame:
     2. Simplifies logic for "Unknown", "Yes/True", and "No/False".
     3. Optimized for display in st.dataframe or st.table.
     """
+
     if df.empty:
         return df
 
     def get_status_style(val):
         val_str = str(val)
+        
         # Dictionary mapping for quick style lookups
         styles = {
             "Unknown":'color: #FFFF00;', # Yellow
-            "Yes":    'color: #66FF00 ;', # Green
+            "Yes":    'color: ##CCFF00;', # Green
             "True":    'color: #66FF00 ;', # Green
             "No":      'color: #FF0000;', # Red
             "False":   'color: #FF0000;'  # Red
@@ -272,7 +274,6 @@ def apply_df_styles(df: pd.DataFrame) -> pd.DataFrame:
         return ''
 
     # Apply the status coloring
-    # Note: .map() replaces .applymap() in newer Pandas versions
     styled_df = df.style.map(get_status_style, subset=["Wheelchair Accessibility"])
 
     return styled_df
@@ -346,7 +347,9 @@ AUDIO SCRIPT:
         return "I couldn't find any specific places matching your search in this area.", []
     
     formatted_context = "\n".join([f"{d.metadata['poi_name']} ({d.metadata['distance_km']}km): {d.page_content}" for d in docs])
-    
+    # print("\n--- Formatted Context for LLM ---")
+    # print(formatted_context)
+    # print("--- End of Formatted Context ---\n")
     chain = prompt | llm | StrOutputParser()
     summary = chain.invoke({"context": formatted_context, "question": _query})
     
@@ -467,23 +470,28 @@ if st.session_state.auth:
         st.info("Cache exists for this query and location. Click 'Clear Cache' to remove it.")
     else:
         st.info("No cache found for this query and location.")  
-    
-    if c5.button("Play Audio Summary") and st.session_state.summary:
-        tts: KokoroTTS = initialize_tts()
-        audio_bytes = tts.generate_audio(st.session_state.summary)
-        st.audio(audio_bytes, format="audio/wav")
-        
+
+    c5_button = c5.button("Play Audio Summary") 
+
     poi_df: pd.DataFrame = utilities.create_df_table(st.session_state.docs)
     poi_df = apply_df_styles(poi_df)
 
     with st.container(border=True):
         st.subheader("AI Guide Results")
         st.dataframe(poi_df, hide_index=True)
+        st.space("small")
+        st.subheader("AI Summary")
         st.markdown(st.session_state.summary)
+        st.space("small")
+        if c5_button:
+            tts: KokoroTTS = initialize_tts()
+            audio_bytes = tts.generate_audio(st.session_state.summary)
+            st.audio(audio_bytes, format="audio/wav")
 
     # Map Visualization
     if st.session_state.docs:
         st.subheader("Interactive Map")
+        st.space("small")
         m = folium.Map(location=[st.session_state.user_lat, st.session_state.user_lon], zoom_start=15)
 
         # Define user location marker

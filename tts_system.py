@@ -23,6 +23,8 @@ except Exception as e:
 
 class KokoroTTS:
 
+    CLEAN_REGEX = re.compile(r'[^\w\s.,!?;:\'\-\"()$]')
+
 
     def __init__(self):
         """
@@ -67,8 +69,8 @@ class KokoroTTS:
                 f.write(response.content)
             print("Voices Config Downloaded.")
 
-    @staticmethod
-    def _check_text(text: str) -> tuple[bool,str]:
+
+    def _check_text(self,text: str) -> tuple[bool,str]:
         """
         Docstring for _check_text
         
@@ -80,17 +82,19 @@ class KokoroTTS:
         
         # Normalize whitespace
         text = " ".join(text.split())
-        text = re.sub(r'[^\w\s.,!?;:\'\-\"()$]', '', text)
+        text = self.CLEAN_REGEX.sub('', text)
 
         if len(text.split()) > 250:
             print("Warning: Text exceeds 500 characters. Truncating to fit model limits.")
             text = " ".join(text.split()[:250])
-        
-        end_space = text.rfind(' ')
-        if end_space > 0:
-            text = text[:end_space] + "..."
+            end_space = text.rfind(' ')
+            if end_space > 0:
+                text = text[:end_space] + "..."
 
-        
+        # For Debugging: Uncomment the following lines to see the cleaned text before generation
+        # print("\n --- Text Check Passed ---")
+        # print(text)
+        # print("--- End of Text Check ---\n")
         return True, text
         
 
