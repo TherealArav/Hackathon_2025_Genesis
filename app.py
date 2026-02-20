@@ -2,14 +2,9 @@ import os
 import streamlit as st
 import requests
 import time
-import csv
-import numpy as np
-import io
-import base64
-import json
 import pandas as pd
-from typing import List, Dict, Any, Optional
-from pydantic import Field, ConfigDict
+from typing import List, Dict, Any
+from pydantic import ConfigDict
 from geopy.distance import great_circle
 from dotenv import load_dotenv
 from utilities import utilities
@@ -22,12 +17,7 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.documents import Document
 from langchain_google_genai import ChatGoogleGenerativeAI
-from scipy.io.wavfile import write as write_wav
 
-# Geolocation & Mapping
-from streamlit_geolocation import streamlit_geolocation
-import folium
-from streamlit_folium import st_folium
 
 load_dotenv()
 
@@ -38,9 +28,6 @@ class GoogleMapsPOIRetriever(BaseRetriever):
     search_api_key: str
     cse_id: str
     radius: int = 1500
-    map_latency: float = 0.0
-    search_latencies: List[float] = Field(default_factory=list)
-
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def _get_pois_from_places_new(self, query: str) -> List[Dict[str, Any]]:
@@ -72,10 +59,7 @@ class GoogleMapsPOIRetriever(BaseRetriever):
         }
 
         try:
-            start = time.time()
             response = requests.post(url, json=payload, headers=headers, timeout=10)
-            self.map_latency = time.time() - start
-            
             if response.status_code != 200:
                 st.error(f"Google API Error ({response.status_code}): {response.text}")
                 return []
@@ -100,9 +84,7 @@ class GoogleMapsPOIRetriever(BaseRetriever):
                   "q": f"{poi_name} {vicinity}", "num": 1
                   }
         try:
-            start = time.time()
             response = requests.get(url, params=params, timeout=5)
-            self.search_latencies.append(time.time() - start)
             res = response.json()
             if "items" in res and len(res["items"]) > 0:
                 return res["items"][0].get("snippet", "No web info found.")
@@ -185,53 +167,7 @@ def apply_custom_css() -> None:
             color: white;
             font-weight: 600;
             border: none;
-            transition: all 0.3s ease;
-        }
-
-        /* 1. The Main Table Container */
-        div[data-testid="stMarkdownContainer"] table {
-            width: 100%;
-            border-collapse: collapse;
-            margin: 25px 0;
-            font-size: 0.9em;
-            font-family: sans-serif;
-            border-radius: 8px 8px 0 0; /* Rounded top corners */
-            overflow: hidden; /* Ensures headers respect the radius */
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.05); /* Subtle depth */
-        }
-
-        /* 2. The Header Row */
-        div[data-testid="stMarkdownContainer"] thead tr {
-            background-color: #FF4B4B; /* Your Primary Brand Color */
-            color: #ffffff;
-            text-align: left;
-            font-weight: bold;
-        }
-
-        /* 3. Cells and Padding */
-        div[data-testid="stMarkdownContainer"] th,
-        div[data-testid="stMarkdownContainer"] td {
-            padding: 12px 15px;
-            border-bottom: 1px solid #dddddd;
-        }
-
-        /* 4. Active/Bottom Border */
-        div[data-testid="stMarkdownContainer"] tbody tr:last-of-type {
-            border-bottom: 2px solid #FF4B4B;
-        }
-        
-        /* Optional: Force the Distance column (usually 2nd) to be centered */
-        div[data-testid="stMarkdownContainer"] th:nth-child(2),
-        div[data-testid="stMarkdownContainer"] td:nth-child(2) {
-        text-align: center;
-        }         
-
-        /* 5. Target DataFrame obj style  */
-        [data-testid="stDataFrame"] {
-            --gdg-bg-header: #FF4B4B !important;
-            --gdg-text-header: #ffffff !important;
-            --gdg-accent-color: #FF4B4B !important;
-            --gdg-bg-header-hovered: #e64444 !important;
+            transition: all 0.2s ease;
         }
         </style>
     """
@@ -247,6 +183,7 @@ def apply_df_styles(df: pd.DataFrame) -> pd.DataFrame:
     3. Optimized for display in st.dataframe or st.table.
     """
 
+    # Check for empty DataFrame to avoid errors when applying styles
     if df.empty:
         return df
 
@@ -278,6 +215,7 @@ def is_rate_limit() -> bool:
     Checks if the user is clicking too fast.
     Returns True if limited, False if okay to proceed.
     """
+
     COOLDOWN_TIME: int = 5 # seconds
     current_time = time.time()
     last_time: time = st.session_state.get("last_click_time")
@@ -290,8 +228,14 @@ def is_rate_limit() -> bool:
     st.session_state.last_click_time = current_time
     return False
 
+def clear_results() -> None:
+    """
+    Clear summary, docs and cache from session state
+    """
+    st.session_state.summary = ""
+    st.session_state.docs = []
+    st.session_state.cache = {}
 
-# @st.cache_data(show_spinner=False)
 def get_rag_response(_query, _lat, _lon, _keys):
     """
     Execute RAG chain and cache results
@@ -304,7 +248,7 @@ def get_rag_response(_query, _lat, _lon, _keys):
     )
     
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-preview-09-2025", 
+        model="gemini-2.5-flash", 
         google_api_key=_keys["GOOGLE_API_KEY"]
     )
     
@@ -342,9 +286,6 @@ AUDIO SCRIPT:
         return "I couldn't find any specific places matching your search in this area.", []
     
     formatted_context = "\n".join([f"{d.metadata['poi_name']} ({d.metadata['distance_km']}km): {d.page_content}" for d in docs])
-    # print("\n--- Formatted Context for LLM ---")
-    # print(formatted_context)
-    # print("--- End of Formatted Context ---\n")
     chain = prompt | llm | StrOutputParser()
     summary = chain.invoke({"context": formatted_context, "question": _query})
     
@@ -381,17 +322,18 @@ with st.sidebar:
 # Main Application
 if st.session_state.auth:
     
+    # Input Section for Cordinates and Query
     c1, c2 = st.columns(2)
     lat_input: float = c1.number_input("Latitude", value = 25.1018, format="%.6f")
     lon_input: float = c2.number_input("Longitude",  value =  55.1628, format="%.6f")
     
+    # Check if cordinates have changed, if so reset summary, docs and cache to prevent confusion with old data. 
+    #  also allows users to quickly change location and run a new search without needing to clear the cache manually each time.
     if lat_input != st.session_state.user_lat or lon_input != st.session_state.user_lon:
         st.session_state.user_lat = lat_input
         st.session_state.user_lon = lon_input
 
-        st.session_state.summary = ""
-        st.session_state.docs = []
-        st.session_state.cache = {}
+        clear_results()
    
     query: str = st.text_input("Search Nearby", "Super Markets")
 
@@ -409,10 +351,7 @@ if st.session_state.auth:
         if  is_rate_limit():
             st.stop()
         
-
-        st.session_state.summary = ""
-        st.session_state.docs = []
-        st.session_state.cache = {}
+        clear_results()
 
         # Cache System -- Connect to local storage and check for nearby cached results before running system.
         connection = QueryStorage()
@@ -468,6 +407,7 @@ if st.session_state.auth:
 
     c5_button = c5.button("Play Audio Summary") 
 
+    # Apply styles to DataFrame and display results
     poi_df: pd.DataFrame = utilities.create_df_table(st.session_state.docs)
     poi_df = apply_df_styles(poi_df)
 

@@ -19,6 +19,8 @@
 ## Overview
 This project is a **Streamlit** web application that provides users with summaries of Points of Interest (POIs) near their location, leveraging an API-driven Retrieval-Augmented Generation (RAG) workflow.
 
+The LLM generates a audio friendly summary of POIs queried from the LangChain Document.
+
 ---
 
 ## Features
@@ -77,8 +79,8 @@ This project is a **Streamlit** web application that provides users with summari
 
 ### 1. Clone & Install
 ```bash
-git clone https://github.com/TherealArav/Hackathon_2025_Genesis.git
-cd Hackathon_2025_Genesis
+git clone https://github.com/TherealArav/GeoNavision.git
+cd GeoNavision
 python -m venv venv
 source venv/bin/activate  # (On Windows: venv\Scripts\activate)
 pip install -r requirements.txt
