@@ -98,12 +98,11 @@ class GoogleMapsPOIRetriever(BaseRetriever):
         """
         Process results into LangChain documents
         """
-        self.map_latency: float = 0.0
-        self.search_latencies: list[float] = []
         
         places: dict[str,Any] = self._get_pois_from_places_new(query)
         docs: list[Document] = []
         user_loc: tuple[float,float] = (self.user_latitude, self.user_longitude)
+
 
         for poi in places: 
             name: str = poi.get("displayName", {}).get("text", "Unknown Place")
@@ -296,6 +295,11 @@ def initialize_tts() -> KokoroTTS:
     """Cache the TTS model to avoid reinitialization on every audio play."""
     return KokoroTTS()
 
+@st.cache_resource
+def initialize_storage() -> QueryStorage:
+    """Cache the storage connection to avoid reinitialization."""
+    return QueryStorage()
+
 # UI IMPLEMENTATION 
 st.set_page_config(page_title="Accessibility Guide", layout="wide")
 apply_custom_css()
@@ -354,7 +358,7 @@ if st.session_state.auth:
         clear_results()
 
         # Cache System -- Connect to local storage and check for nearby cached results before running system.
-        connection = QueryStorage()
+        connection = initialize_storage()
         st.session_state.cache = connection.find_nearby_query(query_text=query, lat=st.session_state.user_lat, lon=st.session_state.user_lon)
         if st.session_state.cache:
             st.session_state.summary = st.session_state.cache.get("summary", "Unable to generate summary from cache.")
@@ -396,7 +400,7 @@ if st.session_state.auth:
 
 
     if c4.button("Clear Cache") and st.session_state.cache:
-        connection = QueryStorage()
+        connection = initialize_storage()
         connection._delete_query_result(query_text=st.session_state.cache.get("query"), lat=st.session_state.cache.get("lat"), lon=st.session_state.cache.get("lon"))
         st.session_state.cache = {}
         st.success("Cache cleared for this query and location.")
