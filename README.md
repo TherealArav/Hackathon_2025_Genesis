@@ -125,6 +125,8 @@ streamlit run app.py
 - [Google Search API](https://developers.google.com/custom-search/v1/overview)
 - [Gemini 2.5](https://cloud.google.com/vertex-ai/docs/generative-ai/learn/models)
 - [SQLite](https://sqlite.org/)
-
+- [Kokoro-TTS](https://github.com/thewh1teagle/kokoro-onnx.git)
+- [Folium](https://github.com/python-visualization/folium.git)
+- [Streamlit-Folium](https://github.com/randyzwitch/streamlit-folium.git)
 ---
 
