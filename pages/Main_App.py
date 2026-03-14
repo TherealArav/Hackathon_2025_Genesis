@@ -137,6 +137,7 @@ class GoogleMapsPOIRetriever(BaseRetriever):
 
 
 # Utility Functions
+@st.cache_resource
 def apply_custom_css() -> None:
     """
     Apply custom CSS styles to app
